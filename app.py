@@ -124,7 +124,7 @@ def addScore(current_user):
 @app.route('/farbophon/getHighscore', methods=['POST', 'GET'])
 def get_highscore():
 
-    highscores = Scores.query.all().order_by(Scores.score.desc()).limit(5)
+    highscores = Scores.query.order_by(Scores.score.desc()).limit(5).all()
 
     output = []
     for score in highscores:
