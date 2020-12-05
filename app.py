@@ -1,85 +1,144 @@
-#!/usr/bin/env python3.6
-import json
-import sqlite3
+import datetime
+import uuid
+from functools import wraps
 
+import jwt
 from flask import Flask
-from flask import g
+from flask import jsonify
+from flask import make_response
 from flask import request
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import check_password_hash
+from werkzeug.security import generate_password_hash
+
+app = Flask(__name__, instance_relative_config=True)
+
+app.config.from_pyfile('config.py')
+print(app.config)
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
+
+db = SQLAlchemy(app)
 
 
-app = Flask(__name__)
-DATABASE = 'db/highscore.db'
+class Users(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    public_id = db.Column(db.Integer)
+    name = db.Column(db.String(50))
+    password = db.Column(db.String(50))
+    admin = db.Column(db.Boolean)
 
 
-def get_db():
-    db = getattr(g, '_database', None)
-    if db is None:
-        db = g._database = sqlite3.connect(DATABASE)
-    return db
+class Scores(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50))
+    score = db.Column(db.Integer)
 
 
-def query_db(query, args=(), one=False):
-    cur = get_db().execute(query, args)
-    rv = cur.fetchall()
-    cur.close()
-    return (rv[0] if rv else None) if one else rv
+def token_required(f):
+    @wraps(f)
+    def decorator(*args, **kwargs):
+
+        token = None
+
+        if 'x-access-tokens' in request.headers:
+            token = request.headers['x-access-tokens']
+
+        if not token:
+            return jsonify({'message': 'a valid token is missing'})
+
+        try:
+            data = jwt.decode(token, app.config['SECRET_KEY'])
+            print(data)
+            current_user = Users.query.filter_by(
+                public_id=data['public_id'],
+            ).first()
+            print(current_user)
+        except Exception:
+            return jsonify({'message': 'token is invalid'})
+
+        return f(current_user, *args, **kwargs)
+    return decorator
 
 
-@app.route("/farbophon", methods=['POST', 'GET'])
-def getData():
-    if request.method == "POST":
-        # return error when request.json not in correct schema
-        highScoreList = addDataToDB(request.json)
-        return json.dumps(highScoreList)
-    elif request.method == "GET":
-        songTable = list(request.json.keys())[0]
-        return json.dumps(
-            query_db(
-                'SELECT * FROM '+songTable+' ORDER BY score DESC LIMIT 5',
-            ),
-        )
+@app.route('/farbophon/register', methods=['POST'])
+def signup_user():
+    data = request.get_json()
 
+    hashed_password = generate_password_hash(data['password'], method='sha256')
 
-def addDataToDB(data):
-    songTable = list(data.keys())[0]
-    tableExists = query_db(
-        'SELECT name FROM sqlite_master WHERE type="table" AND name=?',
-        [songTable],
-        one=True,
+    new_user = Users(
+        public_id=str(uuid.uuid4()),
+        name=data['name'], password=hashed_password, admin=False,
     )
-    if not tableExists:
-        query_db(
-            'CREATE TABLE '+songTable+' (\
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,\
-                  name TEXT NOT NULL,\
-                  score INTEGER NOT NULL)',
+    db.session.add(new_user)
+    db.session.commit()
+
+    return jsonify({'message': 'registered successfully'})
+
+
+@app.route('/farbophon/login', methods=['POST'])
+def login_user():
+
+    auth = request.authorization
+
+    if not auth or not auth.username or not auth.password:
+        return make_response(
+            'could not verify',
+            401,
+            {'WWW.Authentication': 'Basic realm: "login required"'},
         )
-    for item in data[songTable]:
-        playerName = item["name"]
-        playerScore = item["score"]
-        query = 'INSERT INTO '+songTable+' (name,score) VALUES (?,?)'
-        query_db(query, [playerName, playerScore])
-        # sqlcall insert unto
-    get_db().commit()
 
-    return query_db('SELECT * FROM '+songTable+' ORDER BY score DESC LIMIT 5')
-    # return sqlcall get ordered list
+    user = Users.query.filter_by(name=auth.username).first()
 
+    if check_password_hash(user.password, auth.password):
+        token = jwt.encode(
+            {
+                'public_id': user.public_id,
+                'exp': datetime.datetime.utcnow() +
+                datetime.timedelta(minutes=30),
+            },
+            app.config['SECRET_KEY'],
+        )
+        return jsonify({'token': token.decode('UTF-8')})
 
-@app.after_request  # blueprint can also be app~~
-def after_request(response):
-    header = response.headers
-    header['Access-Control-Allow-Origin'] = '*'
-    return response
-
-
-@app.teardown_appcontext
-def close_connection(exception):
-    db = getattr(g, '_database', None)
-    if db is not None:
-        db.close()
+    return make_response(
+        'could not verify',
+        401,
+        {'WWW.Authentication': 'Basic realm: "login required"'},
+    )
 
 
-if __name__ == "__main__":
-    from waitress import serve
-    serve(app, host="0.0.0.0", port=5253)
+@app.route('/farbophon/addScore', methods=['POST'])
+@token_required
+def addScore(current_user):
+    try:
+        data = request.get_json()
+
+        new_score = Scores(name=data['name'], score=data['score'])
+        db.session.add(new_score)
+        db.session.commit()
+
+        return jsonify({'status': 'success'})
+    except Exception:
+        return jsonify({'status': 'failure'})
+
+
+@app.route('/farbophon/getHighscore', methods=['POST', 'GET'])
+def get_highscore():
+
+    highscores = Scores.query.all().order_by(Scores.score.desc()).limit(5)
+    print(highscores)
+
+    output = []
+    for score in highscores:
+
+        score_data = {}
+        score_data['name'] = score.name
+        score_data['score'] = score.score
+        output.append(score_data)
+
+    return jsonify({'highscore': output})
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
