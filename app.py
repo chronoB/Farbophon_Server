@@ -14,7 +14,6 @@ from werkzeug.security import generate_password_hash
 app = Flask(__name__, instance_relative_config=True)
 
 app.config.from_pyfile('config.py')
-print(app.config)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 
 db = SQLAlchemy(app)
@@ -48,11 +47,10 @@ def token_required(f):
 
         try:
             data = jwt.decode(token, app.config['SECRET_KEY'])
-            print(data)
+
             current_user = Users.query.filter_by(
                 public_id=data['public_id'],
             ).first()
-            print(current_user)
         except Exception:
             return jsonify({'message': 'token is invalid'})
 
@@ -127,7 +125,6 @@ def addScore(current_user):
 def get_highscore():
 
     highscores = Scores.query.all().order_by(Scores.score.desc()).limit(5)
-    print(highscores)
 
     output = []
     for score in highscores:
