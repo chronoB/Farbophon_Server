@@ -1,17 +1,13 @@
-import datetime
-import uuid
 from functools import wraps
 
-import jwt
 from flask import Flask
 from flask import jsonify
-from flask import make_response
 from flask import request
+from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import check_password_hash
-from werkzeug.security import generate_password_hash
 
 app = Flask(__name__, instance_relative_config=True)
+CORS(app)
 
 app.config.from_pyfile('config.py')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
@@ -45,70 +41,16 @@ def token_required(f):
         if not token:
             return jsonify({'message': 'a valid token is missing'})
 
-        try:
-            data = jwt.decode(token, app.config['SECRET_KEY'])
-
-            current_user = Users.query.filter_by(
-                public_id=data['public_id'],
-            ).first()
-        except Exception:
+        if token != app.config['API_KEY']:
             return jsonify({'message': 'token is invalid'})
 
-        return f(current_user, *args, **kwargs)
+        return f(*args, **kwargs)
     return decorator
-
-
-@app.route('/farbophon/register', methods=['POST'])
-def signup_user():
-    data = request.get_json()
-
-    hashed_password = generate_password_hash(data['password'], method='sha256')
-
-    new_user = Users(
-        public_id=str(uuid.uuid4()),
-        name=data['name'], password=hashed_password, admin=False,
-    )
-    db.session.add(new_user)
-    db.session.commit()
-
-    return jsonify({'message': 'registered successfully'})
-
-
-@app.route('/farbophon/login', methods=['POST'])
-def login_user():
-
-    auth = request.authorization
-
-    if not auth or not auth.username or not auth.password:
-        return make_response(
-            'could not verify',
-            401,
-            {'WWW.Authentication': 'Basic realm: "login required"'},
-        )
-
-    user = Users.query.filter_by(name=auth.username).first()
-
-    if check_password_hash(user.password, auth.password):
-        token = jwt.encode(
-            {
-                'public_id': user.public_id,
-                'exp': datetime.datetime.utcnow() +
-                datetime.timedelta(minutes=30),
-            },
-            app.config['SECRET_KEY'],
-        )
-        return jsonify({'token': token.decode('UTF-8')})
-
-    return make_response(
-        'could not verify',
-        401,
-        {'WWW.Authentication': 'Basic realm: "login required"'},
-    )
 
 
 @app.route('/farbophon/addScore', methods=['POST'])
 @token_required
-def addScore(current_user):
+def addScore():
     try:
         data = request.get_json()
 
@@ -117,11 +59,12 @@ def addScore(current_user):
         db.session.commit()
 
         return jsonify({'status': 'success'})
-    except Exception:
+    except Exception as e:
+        print(e)
         return jsonify({'status': 'failure'})
 
 
-@app.route('/farbophon/getHighscore', methods=['POST', 'GET'])
+@app.route('/farbophon/getHighscore', methods=['GET'])
 def get_highscore():
 
     highscores = Scores.query.order_by(Scores.score.desc()).limit(5).all()
