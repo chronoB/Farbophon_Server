@@ -7,11 +7,13 @@ from flask import Flask
 from flask import jsonify
 from flask import make_response
 from flask import request
+from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import check_password_hash
 from werkzeug.security import generate_password_hash
 
 app = Flask(__name__, instance_relative_config=True)
+CORS(app)
 
 app.config.from_pyfile('config.py')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
