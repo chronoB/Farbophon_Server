@@ -1,0 +1,12 @@
+import os
+
+# Get the Path to the project root to use it for the database uri later on
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = PROJECT_ROOT[:PROJECT_ROOT.find('instance')]
+
+
+# the key that is used to store the flask session
+SECRET_KEY = "SecretKey"
+# the URI to the database. if you used a different path for the creation of the database you have to change it here.
+SQLALCHEMY_DATABASE_URI = "sqlite:///" + \
+    os.path.join(PROJECT_ROOT, 'db/farbophon.db')
