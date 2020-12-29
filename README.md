@@ -1,5 +1,14 @@
 # Farbophon_Server
 
+# Docker
+
+To run the server in a docker container, run the following commands:
+
+```bash
+docker build -t farbophon-server .
+docker run -d -p 5253:5253 farbophon-server
+```
+
 # Installation
 
 Follow the instruction to set up a local server

@@ -15,3 +15,5 @@ RUN pip install -r requirements.txt && \
     python -c "from app import db; db.create_all()"
 
 CMD python app.py
+
+EXPOSE 5253
