@@ -33,6 +33,7 @@ class Scores(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50))
     score = db.Column(db.Integer)
+    song = db.Column(db.String(50))
 
 
 def token_required(f):
@@ -114,7 +115,11 @@ def addScore(current_user):
     try:
         data = request.get_json()
 
-        new_score = Scores(name=data['name'], score=data['score'])
+        new_score = Scores(
+            name=data['name'],
+            score=data['score'],
+            song=data['song'],
+        )
         db.session.add(new_score)
         db.session.commit()
 
@@ -123,17 +128,21 @@ def addScore(current_user):
         return jsonify({'status': 'failure'})
 
 
-@app.route('/farbophon/getHighscore', methods=['POST', 'GET'])
+@app.route('/farbophon/getHighscore', methods=['GET'])
 def get_highscore():
 
-    highscores = Scores.query.order_by(Scores.score.desc()).limit(5).all()
+    song = request.args.get('song')
+
+    highscores = Scores.query.filter_by(song=song).order_by(
+        Scores.score.desc(),
+    ).limit(5).all()
 
     output = []
     for score in highscores:
-
         score_data = {}
         score_data['name'] = score.name
         score_data['score'] = score.score
+        score_data['song'] = score.song
         output.append(score_data)
 
     return jsonify({'highscore': output})
