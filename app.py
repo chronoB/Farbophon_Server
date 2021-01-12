@@ -5,7 +5,6 @@ from functools import wraps
 import jwt
 from flask import Flask
 from flask import jsonify
-from flask import make_response
 from flask import request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
@@ -83,13 +82,19 @@ def login_user():
     auth = request.authorization
 
     if not auth or not auth.username or not auth.password:
-        return make_response(
-            'could not verify',
-            401,
+        response = jsonify(
             {'WWW.Authentication': 'Basic realm: "login required"'},
         )
+        response.status_code = 401
+        return response
 
     user = Users.query.filter_by(name=auth.username).first()
+    if not user:
+        response = jsonify(
+            {'WWW.Authentication': 'Basic realm: "Invalid login"'},
+        )
+        response.status_code = 401
+        return response
 
     if check_password_hash(user.password, auth.password):
         token = jwt.encode(
@@ -102,11 +107,9 @@ def login_user():
         )
         return jsonify({'token': token.decode('UTF-8')})
 
-    return make_response(
-        'could not verify',
-        401,
-        {'WWW.Authentication': 'Basic realm: "login required"'},
-    )
+    response = jsonify({'WWW.Authentication': 'Basic realm: "Invalid login"'})
+    response.status_code = 401
+    return response
 
 
 @app.route('/farbophon/addScore', methods=['POST'])
