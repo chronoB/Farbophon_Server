@@ -1,5 +1,14 @@
 # Farbophon_Server
 
+# Docker
+
+To run the server in a docker container, run the following commands:
+
+```bash
+docker build -t farbophon-server .
+docker run -d -p 5253:5253 farbophon-server
+```
+
 # Installation
 
 Follow the instruction to set up a local server
@@ -27,6 +36,7 @@ touch instance/config.py
 ```
 
 Now we have to edit the configuration of the server. Just copy this into your configuration file.
+> ⚠️ For Windows use `db\\farbophon`
 ```python
 # file: instance/config.py
 
@@ -41,7 +51,7 @@ PROJECT_ROOT = PROJECT_ROOT[:PROJECT_ROOT.find('instance')]
 SECRET_KEY = "SecretKey"
 # the URI to the database. if you used a different path for the creation of the database you have to change it here.
 SQLALCHEMY_DATABASE_URI = "sqlite:///" + \
-    os.path.join(PROJECT_ROOT, 'db\\farbophon.db')
+    os.path.join(PROJECT_ROOT, 'db/farbophon.db')
 ```
 
 For your local server the SECRET_KEY variable can be some random string. In production you want to use a real secret key. You can generate one with the following command.
